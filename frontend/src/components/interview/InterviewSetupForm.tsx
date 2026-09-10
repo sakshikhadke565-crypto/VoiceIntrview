@@ -12,13 +12,50 @@ export const InterviewSetupForm: React.FC = () => {
     type: 'Technical',
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/interview');
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const response = await fetch('/interviews/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: formData.role,
+          experience: formData.experience,
+          difficulty: formData.difficulty,
+          interview_type: formData.type,
+        }),
+      });
+
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const errorData = await response.json();
+          detail = errorData.detail || '';
+        } catch {
+          // response body not JSON
+        }
+        throw new Error(detail || `Server error (${response.status})`);
+      }
+
+      const data = await response.json();
+      navigate('/interview', { state: { interviewId: data.id } });
+    } catch (err) {
+      console.error('Error creating interview:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setSubmitError(`Failed to start interview: ${message}. Please try again.`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const selectClass = "w-full mt-1.5 bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors appearance-none";
@@ -109,9 +146,12 @@ export const InterviewSetupForm: React.FC = () => {
           </div>
 
           <div className="pt-6">
-            <Button type="submit" variant="primary" size="lg" className="w-full group">
-              Start Interview
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            {submitError && (
+              <p className="text-red-400 text-sm mb-4">{submitError}</p>
+            )}
+            <Button type="submit" variant="primary" size="lg" className="w-full group" disabled={isSubmitting}>
+              {isSubmitting ? 'Starting Interview...' : 'Start Interview'}
+              {!isSubmitting && <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />}
             </Button>
           </div>
         </form>

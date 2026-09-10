@@ -14,4 +14,4 @@ def generate_response(prompt: str) -> str:
         contents=prompt
     )
 
-    return response.text
+    return response.text.strip()

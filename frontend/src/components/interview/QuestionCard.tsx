@@ -1,8 +1,10 @@
-import React from 'react';
-import { Volume2, Brain } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Volume2, Brain, Loader2, Lock } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+
+const MAX_PLAY_COUNT = 3;
 
 interface QuestionCardProps {
   questionNumber: number;
@@ -10,6 +12,8 @@ interface QuestionCardProps {
   question: string;
   topic: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
+  // Used as a reset key — when questionId changes, play count resets
+  questionId: number;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -18,12 +22,57 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   question,
   topic,
   difficulty,
+  questionId,
 }) => {
   const difficultyVariants = {
     Easy: 'success',
     Medium: 'warning',
     Hard: 'error',
   } as const;
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [playCount, setPlayCount] = useState(0);
+
+  // Reset play count whenever the question changes
+  useEffect(() => {
+    setPlayCount(0);
+    setIsPlaying(false);
+    setIsLoading(false);
+  }, [questionId]);
+
+  const playsLeft = MAX_PLAY_COUNT - playCount;
+  const isLocked = playCount >= MAX_PLAY_COUNT;
+
+  const handlePlayQuestion = async () => {
+    if (isLocked || isLoading || isPlaying) return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `/speech/to-audio?text=${encodeURIComponent(question)}`,
+        { method: 'POST' }
+      );
+      if (!response.ok) throw new Error('Failed to generate audio');
+
+      // Cache-bust so we always get the freshly generated audio
+      const audioUrl = `/audio/interview_question.wav?t=${Date.now()}`;
+      const audio = new Audio(audioUrl);
+
+      setIsPlaying(true);
+      setPlayCount((prev) => prev + 1);
+
+      audio.onended = () => setIsPlaying(false);
+      audio.onerror = () => setIsPlaying(false);
+
+      await audio.play();
+    } catch (error) {
+      console.error(error);
+      setIsPlaying(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Card className="flex flex-col h-full border-slate-700/50 bg-slate-900/80">
@@ -52,10 +101,35 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
       </div>
 
       <div className="mt-8 pt-6 border-t border-slate-800">
-        <Button variant="secondary" className="w-full sm:w-auto" size="lg">
-          <Volume2 className="w-5 h-5 mr-2" />
-          Play Question
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="secondary"
+            className="w-full sm:w-auto"
+            size="lg"
+            onClick={handlePlayQuestion}
+            disabled={isLoading || isPlaying || isLocked}
+          >
+            {isLoading ? (
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            ) : isLocked ? (
+              <Lock className="w-5 h-5 mr-2" />
+            ) : (
+              <Volume2 className="w-5 h-5 mr-2" />
+            )}
+            {isLoading
+              ? 'Generating Audio...'
+              : isPlaying
+              ? 'Playing...'
+              : isLocked
+              ? 'Play Limit Reached'
+              : 'Play Question'}
+          </Button>
+
+          {/* Play count indicator */}
+          <span className={`text-sm font-medium ${isLocked ? 'text-red-400' : 'text-gray-400'}`}>
+            {isLocked ? '3/3 plays used' : `${playsLeft} play${playsLeft === 1 ? '' : 's'} left`}
+          </span>
+        </div>
       </div>
     </Card>
   );

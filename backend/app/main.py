@@ -11,7 +11,9 @@ from app.api.questions import router as question_router
 from app.api.answers import router as answer_router
 from app.api.evaluations import router as evaluation_router
 from app.api.speech import router as speech_router
+from app.api.results import router as results_router
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="AI Voice Interviewer API",
@@ -23,7 +25,16 @@ app.mount(
     StaticFiles(directory="generated_audio"),
     name="audio"
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Create database tables
 create_tables()
 
@@ -34,6 +45,7 @@ app.include_router(question_router)
 app.include_router(answer_router)
 app.include_router(evaluation_router)
 app.include_router(speech_router)
+app.include_router(results_router)
 
 @app.get("/")
 def read_root():
